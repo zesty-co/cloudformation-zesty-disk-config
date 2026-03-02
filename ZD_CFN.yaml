@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Zesty-Disk-POC-Enhanced
+
+Parameters:
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets for the instances (recommended at least 2)
+
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group for the instances
+
+  ZestyApiKey:
+    Type: String
+    NoEcho: true
+    Description: Your Zesty Infrastructure Agent API Key
+
+  InstanceType:
+    Type: String
+    Default: c5a.large
+    Description: EC2 instance type for the POC
+    #AllowedValues: [t3.medium, t3.large, c5.large, c5.xlarge, m5.large, m5.xlarge]
+
+  RootVolumeSize:
+    Type: Number
+    Default: 8
+    Description: Size of the Root volume (GB)
+
+  MountDirectory:
+    Type: String
+    Default: /zd_directory
+    Description: The directory path where the Zesty disk will be mounted
+
+Resources:
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ec2-tag-volumes
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                  - ec2:CreateTags
+                Resource: "*"
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  EC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: zesty-poc-template
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType
+        ImageId: !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+        SecurityGroupIds:
+          - !Ref SecurityGroupId
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -euxo pipefail
+
+            yum update -y
+            yum install -y awscli
+
+            TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+            REGION=${AWS::Region}
+
+            sleep 20
+
+            # Tag Root Volume
+            ROOT_VOL=$(aws ec2 describe-volumes --region $REGION --filters Name=attachment.instance-id,Values=$INSTANCE_ID Name=attachment.device,Values=/dev/xvda --query "Volumes[0].VolumeId" --output text)
+            aws ec2 create-tags --region $REGION --resources $ROOT_VOL --tags Key=Name,Value=ZD-POC-Root Key=ManagedBy,Value=ZestyCFN
+            
+            # Tag & Mount Second Volume
+            SECOND_VOL=$(aws ec2 describe-volumes --region $REGION --filters Name=attachment.instance-id,Values=$INSTANCE_ID Name=attachment.device,Values=/dev/xvdb --query "Volumes[0].VolumeId" --output text)
+            
+            if [ "$SECOND_VOL" != "None" ] && [ -n "$SECOND_VOL" ]; then
+              aws ec2 create-tags --region $REGION --resources $SECOND_VOL --tags Key=Name,Value=ZD-POC-Data Key=ZestyDisk,Value=true Key=ManagedBy,Value=ZestyCFN
+              
+              # Install Zesty Agent
+              curl -s https://static.zesty.co/ZX-InfraStructure-Agent-release/install.sh | sudo bash -s apikey=${ZestyApiKey}
+              
+              # Use the MountDirectory parameter
+              mkdir -p ${MountDirectory}
+              zestyctl disk mount /dev/xvdb ${MountDirectory} || true
+            fi
+
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: !Ref RootVolumeSize
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: false
+          - DeviceName: /dev/xvdb
+            Ebs:
+              VolumeSize: 30
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: false
+
+  EC2AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: "1"
+      MaxSize: "1"
+      DesiredCapacity: "1"
+      VPCZoneIdentifier: !Ref SubnetIds
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2LaunchTemplate
+        Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+
+Outputs:
+  ASGName:
+    Value: !Ref EC2AutoScalingGroup
+  MountPoint:
+    Value: !Ref MountDirectory
