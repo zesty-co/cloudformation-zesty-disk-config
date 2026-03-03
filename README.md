@@ -58,6 +58,6 @@ aws cloudformation create-stack \
 ## Run the command to generate a big file
 ### Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
 ```
-sudi su
+sudo su
 ./zesty-big-file-generator.sh 30 /mnt/data/test.txt n
 
