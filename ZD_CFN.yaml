@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Zesty-Disk-POC-Enhanced
+Description: Zesty-Disk-POC
 
 Parameters:
   SubnetIds:
@@ -19,7 +19,13 @@ Parameters:
     Type: String
     Default: c5a.large
     Description: EC2 instance type for the POC
-    #AllowedValues: [t3.medium, t3.large, c5.large, c5.xlarge, m5.large, m5.xlarge]
+
+  InstanceCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 5
+    Description: Number of instances to launch
 
   RootVolumeSize:
     Type: Number
@@ -29,14 +35,23 @@ Parameters:
   MountDirectory:
     Type: String
     Default: /zd_directory
-    Description: The directory path where the Zesty disk will be mounted
+    Description: The directory path for the Zesty disk
 
-  InstanceCount:
-    Type: Number
-    Default: 1
-    MinValue: 1
-    MaxValue: 10
-    Description: Number of instances to launch for the POC
+  EnableEncryptionEBS:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable EBS encryption for both disks
+
+  DeleteOnTerminationEBS:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Delete volumes when the instance is terminated
+
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access
 
 Resources:
 
@@ -70,9 +85,10 @@ Resources:
   EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: zesty-poc-template
+      LaunchTemplateName: !Sub "zesty-poc-template-${AWS::StackName}"
       LaunchTemplateData:
         InstanceType: !Ref InstanceType
+        KeyName: !Ref KeyPairName
         ImageId: !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
         IamInstanceProfile:
           Name: !Ref InstanceProfile
@@ -81,6 +97,11 @@ Resources:
           HttpEndpoint: enabled
         SecurityGroupIds:
           - !Ref SecurityGroupId
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: Zesty-Disk-POC
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
@@ -95,22 +116,25 @@ Resources:
 
             sleep 20
 
-            # Tag Root Volume
+            # Tag Root Volume - Applying Name Tag explicitly
             ROOT_VOL=$(aws ec2 describe-volumes --region $REGION --filters Name=attachment.instance-id,Values=$INSTANCE_ID Name=attachment.device,Values=/dev/xvda --query "Volumes[0].VolumeId" --output text)
-            aws ec2 create-tags --region $REGION --resources $ROOT_VOL --tags Key=Name,Value=ZD-POC-Root Key=ManagedBy,Value=ZestyCFN
+            aws ec2 create-tags --region $REGION --resources $ROOT_VOL --tags Key=Name,Value="ZD-POC-Root" Key=ManagedBy,Value="ZestyCFN"
             
-            # Tag & Mount Second Volume
+            # Tag & Prepare Second Volume
             SECOND_VOL=$(aws ec2 describe-volumes --region $REGION --filters Name=attachment.instance-id,Values=$INSTANCE_ID Name=attachment.device,Values=/dev/xvdb --query "Volumes[0].VolumeId" --output text)
             
             if [ "$SECOND_VOL" != "None" ] && [ -n "$SECOND_VOL" ]; then
-              aws ec2 create-tags --region $REGION --resources $SECOND_VOL --tags Key=Name,Value=ZD-POC-Data Key=ZestyDisk,Value=true Key=ManagedBy,Value=ZestyCFN
+              aws ec2 create-tags --region $REGION --resources $SECOND_VOL --tags Key=Name,Value="ZD-POC-Data" Key=ZestyDisk,Value="true" Key=ManagedBy,Value="ZestyCFN"
               
               # Install Zesty Agent
               curl -s https://static.zesty.co/ZX-InfraStructure-Agent-release/install.sh | sudo bash -s apikey=${ZestyApiKey}
               
-              # Use the MountDirectory parameter
-              mkdir -p ${MountDirectory}
+              # Mount Directory
               zestyctl disk mount /dev/xvdb ${MountDirectory} || true
+
+              # Download data generator for POC testing
+              curl "https://s3.eu-west-1.amazonaws.com/static.zesty.co/scripts/zesty-big-file-generator.sh" -o "/home/ec2-user/zesty-big-file-generator.sh"
+              chmod +x /home/ec2-user/zesty-big-file-generator.sh
             fi
 
         BlockDeviceMappings:
@@ -118,14 +142,14 @@ Resources:
             Ebs:
               VolumeSize: !Ref RootVolumeSize
               VolumeType: gp3
-              Encrypted: true
-              DeleteOnTermination: false
+              Encrypted: !Ref EnableEncryptionEBS
+              DeleteOnTermination: !Ref DeleteOnTerminationEBS
           - DeviceName: /dev/xvdb
             Ebs:
               VolumeSize: 30
               VolumeType: gp3
-              Encrypted: true
-              DeleteOnTermination: false
+              Encrypted: !Ref EnableEncryptionEBS
+              DeleteOnTermination: !Ref DeleteOnTerminationEBS
 
   EC2AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
