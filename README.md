@@ -55,7 +55,7 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_IAM
 
 ```
-# Run the command
-# Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
+## Run the command
+## Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
 ./zesty-big-file-generator.sh 30 /mnt/data/test.txt n
 
