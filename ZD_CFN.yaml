@@ -31,6 +31,13 @@ Parameters:
     Default: /zd_directory
     Description: The directory path where the Zesty disk will be mounted
 
+  InstanceCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 10
+    Description: Number of instances to launch for the POC
+
 Resources:
 
   InstanceRole:
@@ -123,9 +130,9 @@ Resources:
   EC2AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      MinSize: "1"
-      MaxSize: "1"
-      DesiredCapacity: "1"
+      MinSize: !Ref InstanceCount
+      MaxSize: !Ref InstanceCount
+      DesiredCapacity: !Ref InstanceCount
       VPCZoneIdentifier: !Ref SubnetIds
       LaunchTemplate:
         LaunchTemplateId: !Ref EC2LaunchTemplate
