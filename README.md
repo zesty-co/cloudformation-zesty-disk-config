@@ -56,7 +56,7 @@ aws cloudformation create-stack \
 
 ```
 ## Run the command to generate a big file
-####Connect to the ec2
+#### Connect to the ec2
 #### Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
 ```
 sudo su
