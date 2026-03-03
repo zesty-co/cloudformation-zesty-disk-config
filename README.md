@@ -27,6 +27,9 @@ This template deploys a scalable EC2 environment. It uses an **Auto Scaling Grou
 | **MountDirectory**| `/zd_directory` | Linux path where the second disk will be mounted. |
 | **SubnetIds** | - | Target subnets for deployment. |
 | **SecurityGroupId**| - | Security Group for network access. |
+| **EnableEncryption** | `false` | Enables AES-256 encryption on all EBS volumes. |
+| **DeleteOnTermination** | `true` | Set to `true` to auto-clean disks when the stack is deleted. |
+| **KeyPairName** | - | **(Required)** The name of your AWS SSH Key Pair. |
 
 ---
 
@@ -52,4 +55,7 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_IAM
 
 ```
-* Run an `update-stack` command in AWS (CloudFormation will automatically pick up the `LatestVersionNumber` for the Launch Template)
+# Run the command
+# Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
+./zesty-big-file-generator.sh 30 /mnt/data/test.txt n
+
