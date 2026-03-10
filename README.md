@@ -1,6 +1,6 @@
 # Zesty Disk POC (CloudFormation)
 
-Accelerate your Zesty Disk evaluation. This repository provides a fully-parameterized AWS CloudFormation template that automates infrastructure setup, volume tagging, and agent installation across **Amazon Linux 2023** and **Windows Server 2022**.
+Accelerate your Zesty Disk evaluation. This repository provides an AWS CloudFormation template that automates infrastructure setup and ZD agent installation across **Amazon Linux 2023** and **Windows Server 2022**.
 
 
 
@@ -8,7 +8,9 @@ Accelerate your Zesty Disk evaluation. This repository provides a fully-paramete
 
 ## Overview
 
-This template deploys a scalable EC2 environment using an **Auto Scaling Group (ASG)**. It ensures that every node in your Proof of Concept (POC) is identically configured with Zesty's optimization tools, automated volume tagging, and correct drive mounting logic.
+This template deploys a scalable EC2 environment using an Auto Scaling Group (ASG). It ensures that each instance launched in the AWS account environment includes automated installation and setup of Zesty's optimization tool - ZestyDisk.
+
+The template enables consistent infrastructure provisioning while automating instance creation and disk configuration for the ZestyDisk.
 
 ##  Key Features
 
