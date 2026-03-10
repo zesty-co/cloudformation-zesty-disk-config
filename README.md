@@ -58,12 +58,17 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_IAM
 
 ```
+
+### Run the following command to see the mount point as mounted
+```
+sudo su
+```
+```
+df -h
+```
 ## Run the command to generate a big file
 #### Connect to the ec2
 #### Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
-```
-```
-sudo su
 ```
 ./zesty-big-file-generator.sh 30 /zd_directory/bigfiledata.txt n
 ```
