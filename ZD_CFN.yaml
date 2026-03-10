@@ -2,9 +2,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Zesty-Disk-POC
 
 Parameters:
+  OSSelection:
+    Type: String
+    Default: AmazonLinux2023
+    AllowedValues: [AmazonLinux2023, Windows2022]
+    Description: Select the Operating System for the POC
+
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: Subnets for the instances (recommended at least 2)
+    Description: Subnets for the instances
 
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
@@ -18,43 +24,28 @@ Parameters:
   InstanceType:
     Type: String
     Default: c5a.large
-    Description: EC2 instance type for the POC
+    Description: EC2 instance type (c5a uses NVMe)
 
   InstanceCount:
     Type: Number
     Default: 1
-    MinValue: 1
-    MaxValue: 5
     Description: Number of instances to launch
-
-  RootVolumeSize:
-    Type: Number
-    Default: 8
-    Description: Size of the Root volume (GB)
-
-  MountDirectory:
-    Type: String
-    Default: /zd_directory
-    Description: The directory path for the Zesty disk
-
-  EnableEncryptionEBS:
-    Type: String
-    Default: 'false'
-    AllowedValues: ['true', 'false']
-    Description: Enable EBS encryption for both disks
-
-  DeleteOnTerminationEBS:
-    Type: String
-    Default: 'true'
-    AllowedValues: ['true', 'false']
-    Description: Delete volumes when the instance is terminated
 
   KeyPairName:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 KeyPair to enable SSH access
+    Description: Name of an existing EC2 KeyPair
+
+Mappings:
+  OSMap:
+    AmazonLinux2023:
+      AMI: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+    Windows2022:
+      AMI: "/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base"
+
+Conditions:
+  IsWindows: !Equals [!Ref OSSelection, Windows2022]
 
 Resources:
-
   InstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -65,6 +56,8 @@ Resources:
             Principal:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
         - PolicyName: ec2-tag-volumes
           PolicyDocument:
@@ -89,7 +82,9 @@ Resources:
       LaunchTemplateData:
         InstanceType: !Ref InstanceType
         KeyName: !Ref KeyPairName
-        ImageId: !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+        ImageId: !Sub
+          - "{{resolve:ssm:${AmiPath}}}"
+          - AmiPath: !FindInMap [OSMap, !Ref OSSelection, AMI]
         IamInstanceProfile:
           Name: !Ref InstanceProfile
         MetadataOptions:
@@ -98,62 +93,56 @@ Resources:
         SecurityGroupIds:
           - !Ref SecurityGroupId
         TagSpecifications:
-          - ResourceType: instance
+          - ResourceType: volume
             Tags:
+              - Key: ZestyDisk
+                Value: "true"
               - Key: Name
-                Value: Zesty-Disk-POC
-        UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash
-            set -euxo pipefail
-
-            yum update -y
-            yum install -y awscli
-
-            TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-            INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
-            REGION=${AWS::Region}
-
-            sleep 20
-
-            # Tag Root Volume - Applying Name Tag explicitly
-            ROOT_VOL=$(aws ec2 describe-volumes --region $REGION --filters Name=attachment.instance-id,Values=$INSTANCE_ID Name=attachment.device,Values=/dev/xvda --query "Volumes[0].VolumeId" --output text)
-            aws ec2 create-tags --region $REGION --resources $ROOT_VOL --tags Key=Name,Value="ZD-POC-Root" Key=ManagedBy,Value="ZestyCFN"
-            
-            # Tag & Prepare Second Volume
-            SECOND_VOL=$(aws ec2 describe-volumes --region $REGION --filters Name=attachment.instance-id,Values=$INSTANCE_ID Name=attachment.device,Values=/dev/xvdb --query "Volumes[0].VolumeId" --output text)
-            
-            if [ "$SECOND_VOL" != "None" ] && [ -n "$SECOND_VOL" ]; then
-              aws ec2 create-tags --region $REGION --resources $SECOND_VOL --tags Key=Name,Value="ZD-POC-Data" Key=ZestyDisk,Value="true" Key=ManagedBy,Value="ZestyCFN"
-              
-              # Install Zesty Agent
-              curl -s https://static.zesty.co/ZX-InfraStructure-Agent-release/install.sh | sudo bash -s apikey=${ZestyApiKey}
-              
-              # Mount Directory
-              zestyctl disk mount /dev/xvdb ${MountDirectory} || true
-
-              # Download data generator for POC testing
-              curl "https://s3.eu-west-1.amazonaws.com/static.zesty.co/scripts/zesty-big-file-generator.sh" -o "/home/ec2-user/zesty-big-file-generator.sh"
-              chmod +x /home/ec2-user/zesty-big-file-generator.sh
-            fi
-
+                Value: ZestyPOC
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
-              VolumeSize: !Ref RootVolumeSize
-              VolumeType: gp3
-              Encrypted: !Ref EnableEncryptionEBS
-              DeleteOnTermination: !Ref DeleteOnTerminationEBS
-          - DeviceName: /dev/xvdb
-            Ebs:
               VolumeSize: 30
               VolumeType: gp3
-              Encrypted: !Ref EnableEncryptionEBS
-              DeleteOnTermination: !Ref DeleteOnTerminationEBS
+              DeleteOnTermination: true
+          - DeviceName: /dev/xvdb
+            Ebs:
+              VolumeSize: 50
+              VolumeType: gp3
+              DeleteOnTermination: true
+        UserData:
+          Fn::Base64: !If
+            - IsWindows
+            - !Sub |
+                <Powershell>
+                [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12;
+                (New-Object System.Net.WebClient).DownloadFile("https://static.zesty.co/ZX-InfraStructure-Agent-release/windows/downloader.ps1", "$env:TEMP\downloader.ps1");
+                powershell -File "$env:TEMP\downloader.ps1" -api_key ${ZestyApiKey}
+                Start-Sleep -s 30
+                if (Test-Path "C:\zesty\collector\zmount.exe") {
+                    C:\zesty\collector\zmount.exe -driveLetter D -diskNumber 1
+                }
+                </Powershell>
+            - !Sub |
+                #!/bin/bash
+                set -euxo pipefail
+                dnf install -y awscli
+
+                # Install Zesty Agent
+                curl -s https://static.zesty.co/ZX-InfraStructure-Agent-release/install.sh | sudo bash -s apikey=${ZestyApiKey}
+                
+                # Mount to /zd_directory
+                sleep 5
+                zestyctl disk mount /dev/nvme1n1 /zd_directory || true
+              
+                # Download data generator for POC testing
+                curl "https://s3.eu-west-1.amazonaws.com/static.zesty.co/scripts/zesty-big-file-generator.sh" -o "/home/ec2-user/zesty-big-file-generator.sh"
+                chmod +x /home/ec2-user/zesty-big-file-generator.sh
 
   EC2AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
+      AutoScalingGroupName: !Sub "zesty-asg-${AWS::StackName}"
       MinSize: !Ref InstanceCount
       MaxSize: !Ref InstanceCount
       DesiredCapacity: !Ref InstanceCount
@@ -161,9 +150,13 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref EC2LaunchTemplate
         Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: Zesty-POC-Instance
+          PropagateAtLaunch: true
 
 Outputs:
+  SelectedOS:
+    Value: !Ref OSSelection
   ASGName:
     Value: !Ref EC2AutoScalingGroup
-  MountPoint:
-    Value: !Ref MountDirectory
