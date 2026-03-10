@@ -1,4 +1,4 @@
-# 🚀 Zesty Disk POC (CloudFormation)
+# Zesty Disk POC (CloudFormation)
 
 Accelerate your Zesty Disk evaluation. This repository provides a fully-parameterized AWS CloudFormation template that automates infrastructure setup, volume tagging, and agent installation across **Amazon Linux 2023** and **Windows Server 2022**.
 
@@ -6,7 +6,7 @@ Accelerate your Zesty Disk evaluation. This repository provides a fully-paramete
 
 ---
 
-## 📖 Overview
+## Overview
 
 This template deploys a scalable EC2 environment using an **Auto Scaling Group (ASG)**. It ensures that every node in your Proof of Concept (POC) is identically configured with Zesty's optimization tools, automated volume tagging, and correct drive mounting logic.
 
@@ -63,7 +63,7 @@ aws cloudformation create-stack \
 sudo su
 
 ./zesty-big-file-generator.sh 30 /zd_directory/bigfiledata.txt n
-
+```
 ## For Windows, use the following URL to download the dig data file
 https://ash-speed.hetzner.com/
 
