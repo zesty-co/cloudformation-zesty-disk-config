@@ -65,6 +65,7 @@ sudo su
 ./zesty-big-file-generator.sh 30 /zd_directory/bigfiledata.txt n
 ```
 ## For Windows, use the following URL to download the dig data file
-### Select the file for downloading - save the file to disk D
 https://ash-speed.hetzner.com/
+
+#### Select the file for downloading - save the file to disk D
 
