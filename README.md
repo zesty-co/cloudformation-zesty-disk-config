@@ -54,9 +54,9 @@ Before deploying the stack, ensure you have:
 3.  Click **Create Stack** > **With new resources (standard)**.
 4.  Upload the template, fill in the parameters, and click **Create Stack**.
 
-### Method 2: AWS CLI
+## Method 2: AWS CLI
 
-## Deployment Examples
+### Deployment Examples
 
 ### Standard Linux Deployment
 ```bash
@@ -101,7 +101,7 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_IAM
 
 ```
-### Run the following command to see the mount point as mounted
+## Run the following command to see the mount point as mounted
 ```
 sudo su
 ```
