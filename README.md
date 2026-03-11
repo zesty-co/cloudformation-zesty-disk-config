@@ -46,6 +46,15 @@ Before deploying the stack, ensure you have:
 | `DeleteVolumesOnTermination` | `true` | Delete volumes when the instance is terminated. |
 
 ---
+##  Deployment Instructions
+
+### Method 1: AWS Management Console
+1.  Download the `ZD_CFN.yaml` from this repo.
+2.  Navigate to **CloudFormation** in the AWS Console.
+3.  Click **Create Stack** > **With new resources (standard)**.
+4.  Upload the template, fill in the parameters, and click **Create Stack**.
+
+### Method 2: AWS CLI
 
 ## Deployment Examples
 
