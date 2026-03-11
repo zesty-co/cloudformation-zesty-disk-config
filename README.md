@@ -54,6 +54,25 @@ Before deploying the stack, ensure you have:
 3.  Click **Create Stack** > **With new resources (standard)**.
 4.  Upload the template, fill in the parameters, and click **Create Stack**.
 
+
+## Run the following command to see the mount point as mounted
+```
+sudo su
+```
+```
+df -h
+```
+## Run the command to generate a big file
+#### Connect to the ec2
+#### Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
+```
+./zesty-big-file-generator.sh 30 /zd_directory/bigfiledata.txt n
+```
+## For Windows, use the following URL to download the dig data file
+https://ash-speed.hetzner.com/
+
+#### Select the file for downloading - save the file to disk D
+
 ## Method 2: AWS CLI
 
 ### Deployment Examples
@@ -101,20 +120,4 @@ aws cloudformation create-stack \
   --capabilities CAPABILITY_IAM
 
 ```
-## Run the following command to see the mount point as mounted
-```
-sudo su
-```
-```
-df -h
-```
-## Run the command to generate a big file
-#### Connect to the ec2
-#### Each value means the following <file_size_in_GB> <file_path> <delete_file y/n>
-```
-./zesty-big-file-generator.sh 30 /zd_directory/bigfiledata.txt n
-```
-## For Windows, use the following URL to download the dig data file
-https://ash-speed.hetzner.com/
 
-#### Select the file for downloading - save the file to disk D
