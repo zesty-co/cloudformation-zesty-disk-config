@@ -20,9 +20,10 @@ The template provisions an EC2 Auto Scaling Group (ASG) that automatically confi
 ## Prerequisites
 
 Before deploying the stack, ensure you have:
-1.  **Zesty API Key:** Found in the Zesty Platform under *ZestyDisk > Managed Filesystems > Install Agent*.
-2.  **Network Info:** Existing VPC Subnet IDs and a Security Group ID.
-3.  **EC2 Key Pair:** An existing RSA KeyPair name for instance access.
+1.  **AWS Permissions:** Create EC2, ASG, Volumes, Tags. 
+2.  **Zesty API Key:** Found in the Zesty Platform under *ZestyDisk > Managed Filesystems > Install Agent*.
+3.  **Network Info:** Existing VPC Subnet IDs and a Security Group ID.
+4.  **EC2 Key Pair:** An existing RSA KeyPair name for instance access.
 
 ---
 
