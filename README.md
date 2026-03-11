@@ -1,4 +1,4 @@
-# Zesty Disk POC Deployment
+# Zesty Disk CFN
 
 This repository contains a CloudFormation template designed to automate the deployment of a **Zesty Disk**. It handles the infrastructure setup, IAM roles, and automated agent installation for both Linux and Windows environments.
 
