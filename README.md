@@ -52,9 +52,9 @@ aws cloudformation create-stack \
     ParameterKey=SecurityGroupId,ParameterValue=sg-000 \
     ParameterKey=KeyPairName,ParameterValue=my-key-pair \
   --capabilities CAPABILITY_IAM
-
-for custom
-
+```
+For CustomAMI
+```
 aws cloudformation create-stack \
   --stack-name Zesty-Custom-POC \
   --template-body file://zesty-poc.yaml \
