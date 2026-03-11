@@ -73,7 +73,7 @@ https://ash-speed.hetzner.com/
 
 #### Select the file for downloading - save the file to disk D
 
-
+---
 ## Method 2: AWS CLI
 
 ### Deployment Examples
