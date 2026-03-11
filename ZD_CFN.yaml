@@ -18,7 +18,16 @@ Metadata:
           - InstanceCount
           - KeyPairName
       - Label:
-          default: "3. Network Settings"
+          default: "3. Storage Configuration"
+        Parameters:
+          - RootVolumeSize
+          - RootVolumeType
+          - ZestyVolumeSize
+          - ZestyVolumeType
+          - EncryptVolumes
+          - DeleteVolumesOnTermination
+      - Label:
+          default: "4. Network Settings"
         Parameters:
           - SubnetIds
           - SecurityGroupId
@@ -27,24 +36,18 @@ Parameters:
   AmiSelection:
     Type: String
     Default: AmazonLinux2023
-    AllowedValues:
-      - AmazonLinux2023
-      - Windows2022
-      - CustomAMI
+    AllowedValues: [AmazonLinux2023, Windows2022, CustomAMI]
     Description: Select a standard OS or 'Custom' to provide your own AMI ID.
 
   CustomAMI:
     Type: String
     Default: ""
-    Description: "(Required ONLY if 'Custom' is selected) Enter your AMI ID (e.g., ami-xxxxxx)."
+    Description: "(Required ONLY if 'Custom' is selected) Enter your AMI ID."
 
   CustomOSType:
     Type: String
     Default: "Please-Select-OS-For-Custom"
-    AllowedValues:
-      - "Please-Select-OS-For-Custom"
-      - Linux
-      - Windows
+    AllowedValues: ["Please-Select-OS-For-Custom", Linux, Windows]
     Description: "(Required ONLY if 'Custom' is selected) Specify if your custom AMI is Linux or Windows."
 
   SubnetIds:
@@ -58,7 +61,7 @@ Parameters:
   ZestyApiKey:
     Type: String
     NoEcho: true
-    Description: Your Zesty Agent API Key (Can be found in Zesty Platform > ZestyDisk > Managed Filesystems > Install Agent).
+    Description: Your Zesty Agent API Key.
 
   InstanceType:
     Type: String
@@ -74,6 +77,40 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Name of an existing RSA KeyPair.
 
+  RootVolumeSize:
+    Type: Number
+    Default: 15
+    Description: Size of the Root volume (GB). For Windows set 100GB
+
+  RootVolumeType:
+    Type: String
+    Default: gp3
+    AllowedValues: [gp2, gp3, io1, io2]
+    Description: Storage type for the Root volume.
+
+  ZestyVolumeSize:
+    Type: Number
+    Default: 50
+    Description: Size of the secondary Zesty-managed volume (GB).
+
+  ZestyVolumeType:
+    Type: String
+    Default: gp3
+    AllowedValues: [gp2, gp3, io1, io2]
+    Description: Storage type for the Zesty-managed volume.
+
+  EncryptVolumes:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Enable EBS encryption for both volumes.
+
+  DeleteVolumesOnTermination:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Delete volumes when the instance is terminated.
+
 Mappings:
   OSMap:
     AmazonLinux2023:
@@ -84,12 +121,7 @@ Mappings:
       OSType: "Windows"
 
 Conditions:
-  IsCustom: !Equals [!Ref AmiSelection, "Custom"]
-
-  # template:
-  # Use Windows UserData if:
-  # 1. Standard Windows2022 is picked
-  # 2. Custom is picked AND CustomOSType is Windows
+  IsCustom: !Equals [!Ref AmiSelection, "CustomAMI"]
   UseWindowsUserData: !Or
     - !Equals [!Ref AmiSelection, "Windows2022"]
     - !And [!Condition IsCustom, !Equals [!Ref CustomOSType, "Windows"]]
@@ -145,9 +177,17 @@ Resources:
               - {Key: Name, Value: ZestyPOC}
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
-            Ebs: {VolumeSize: 30, VolumeType: gp3, DeleteOnTermination: true}
+            Ebs:
+              VolumeSize: !Ref RootVolumeSize
+              VolumeType: !Ref RootVolumeType
+              DeleteOnTermination: !Ref DeleteVolumesOnTermination
+              Encrypted: !Ref EncryptVolumes
           - DeviceName: /dev/xvdb
-            Ebs: {VolumeSize: 50, VolumeType: gp3, DeleteOnTermination: true}
+            Ebs:
+              VolumeSize: !Ref ZestyVolumeSize
+              VolumeType: !Ref ZestyVolumeType
+              DeleteOnTermination: !Ref DeleteVolumesOnTermination
+              Encrypted: !Ref EncryptVolumes
         UserData:
           Fn::Base64: !If
             - UseWindowsUserData
@@ -165,12 +205,9 @@ Resources:
                 #!/bin/bash
                 set -euxo pipefail
                 dnf install -y awscli || yum install -y awscli
-              
                 curl -s https://static.zesty.co/ZX-InfraStructure-Agent-release/install.sh | sudo bash -s apikey=${ZestyApiKey}
                 sleep 5
-              
                 zestyctl disk mount /dev/nvme1n1 /zd_directory || true
-              
                 curl "https://s3.eu-west-1.amazonaws.com/static.zesty.co/scripts/zesty-big-file-generator.sh" -o "/home/ec2-user/zesty-big-file-generator.sh"
                 chmod +x /home/ec2-user/zesty-big-file-generator.sh
 
@@ -189,7 +226,5 @@ Resources:
         - {Key: Name, Value: Zesty-POC-Instance, PropagateAtLaunch: true}
 
 Outputs:
-  AmiMode:
-    Value: !Ref AmiSelection
   ASGName:
     Value: !Ref EC2AutoScalingGroup
