@@ -61,6 +61,7 @@ aws cloudformation create-stack \
     ParameterKey=AmiSelection,ParameterValue="AmazonLinux2023" \
     ParameterKey=ZestyVolumeSize,ParameterValue=100 \
   --capabilities CAPABILITY_IAM
+```
 For CustomAMI
 ```
 aws cloudformation create-stack \
