@@ -62,7 +62,21 @@ aws cloudformation create-stack \
     ParameterKey=ZestyVolumeSize,ParameterValue=100 \
   --capabilities CAPABILITY_IAM
 ```
-For CustomAMI
+### Standard Windows Deployment
+```
+aws cloudformation create-stack \
+  --stack-name Zesty-Windows-POC \
+  --template-body file://template.yaml \
+  --parameters \
+    ParameterKey=ZestyApiKey,ParameterValue="YOUR_API_KEY" \
+    ParameterKey=SubnetIds,ParameterValue="subnet-12345" \
+    ParameterKey=SecurityGroupId,ParameterValue="sg-54321" \
+    ParameterKey=AmiSelection,ParameterValue="Windows2022" \
+    ParameterKey=RootVolumeSize,ParameterValue=100 \
+    ParameterKey=ZestyVolumeSize,ParameterValue=200 \
+  --capabilities CAPABILITY_IAM
+```
+### CustomAMI Deployment
 ```
 aws cloudformation create-stack \
   --stack-name Zesty-Custom-POC \
