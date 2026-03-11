@@ -68,7 +68,7 @@ aws cloudformation create-stack \
     ParameterKey=KeyPairName,ParameterValue=my-key-pair \
   --capabilities CAPABILITY_IAM
 
-
+```
 ### Run the following command to see the mount point as mounted
 ```
 sudo su
