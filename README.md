@@ -1,58 +1,66 @@
-# Zesty Disk CFN
-This CloudFormation template automates the deployment of an EC2 Auto Scaling Group designed deploy **Zesty Disk** filesystems. It handles infrastructure provisioning, IAM roles, and the automated installation of the Zesty Agent across Linux or Windows environments.
+# Zesty Disk POC Deployment
+
+This repository contains a CloudFormation template designed to automate the deployment of a **Zesty Disk**. It handles the infrastructure setup, IAM roles, and automated agent installation for both Linux and Windows environments.
+
+
 
 ---
 
-##  Overview
+## Overview
 
-The template simplifies the setup by:
-* **Dynamic OS Selection:** Support for Amazon Linux 2023, Windows Server 2022, or a **Custom AMI**.
-* **Automated Agent Deployment:** Uses `UserData` to fetch and configure the Zesty Agent automatically.
-* **Storage Configuration:** Attaches a secondary **50GB gp3 volume** specifically tagged (`ZestyDisk: true`) for management.
-* **IAM Compliance:** Includes an Instance Profile with `AmazonSSMManagedInstanceCore` for secure, keyless access via Systems Manager.
+The template provisions an EC2 Auto Scaling Group (ASG) that automatically configures your instances to be managed by Zesty. Key features include:
 
----
-
-##  Prerequisites
-
-1.  **Zesty API Key:** Retrieve this from the Zesty Platform (*ZestyDisk > Managed Filesystems > Install Agent*).
-2.  **Network Setup:** You will need an existing VPC, Subnet IDs, and a Security Group ID.
-3.  **Key Pair:** An existing RSA KeyPair name for initial access if needed.
+* **Multi-OS Support:** Amazon Linux 2023, Windows Server 2022, or Custom AMIs.
+* **Granular Storage Control:** Define volume sizes and types (`gp2`, `gp3`, `io1`, `io2`) for both Root and Zesty disks.
+* **Security First:** Integrated IAM roles for SSM access and optional EBS encryption.
+* **Zero-Touch Install:** Bootstrap scripts automatically install the Zesty Agent and mount the managed disks.
 
 ---
 
-## 📋 Parameters
+## Prerequisites
 
-| Group | Parameter | Description |
+Before deploying the stack, ensure you have:
+1.  **Zesty API Key:** Found in the Zesty Platform under *ZestyDisk > Managed Filesystems > Install Agent*.
+2.  **Network Info:** Existing VPC Subnet IDs and a Security Group ID.
+3.  **EC2 Key Pair:** An existing RSA KeyPair name for instance access.
+
+---
+
+## Parameter Reference
+
+### 1. AMI Selection
+| Parameter | Default | Description |
 | :--- | :--- | :--- |
-| **1. AMI Selection** | `AmiSelection` | Select `AmazonLinux2023`, `Windows2022`, or `CustomAMI`. |
-| | `CustomAMI` | **(Required if Custom)** The ID of your AMI (e.g., `ami-xxxxxx`). |
-| | `CustomOSType` | **(Required if Custom)** Specify `Linux` or `Windows`. |
-| **2. Instance Config** | `ZestyApiKey` | Your Zesty Agent API Key (Sensitive/Hidden). |
-| | `InstanceType` | EC2 family (Default: `c5a.large`). |
-| | `InstanceCount` | Number of instances to launch. |
-| **3. Network** | `SubnetIds` | List of subnets for the ASG. |
-| | `SecurityGroupId` | Security group to attach to instances. |
+| `AmiSelection` | `AmazonLinux2023` | Select `AmazonLinux2023`, `Windows2022`, or `CustomAMI`. |
+| `CustomAMI` | - | **Required** if `AmiSelection` is `CustomAMI`. |
+| `CustomOSType` | - | **Required** if `CustomAMI` is used (`Linux` or `Windows`). |
+
+### 2. Storage Configuration
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `RootVolumeSize` | `15` | **Note:** Use `100` for Windows instances. |
+| `RootVolumeType` | `gp3` | Options: `gp2`, `gp3`, `io1`, `io2`. |
+| `ZestyVolumeSize` | `50` | Size of the secondary Zesty-managed disk. |
+| `ZestyVolumeType` | `gp3` | Options: `gp2`, `gp3`, `io1`, `io2`. |
+| `EncryptVolumes` | `false` | Enable EBS encryption for both volumes. |
+| `DeleteVolumesOnTermination` | `true` | Delete volumes when the instance is terminated. |
 
 ---
 
-## 💻 Deployment
+## Deployment Examples
 
-### Option 1: AWS CLI (Standard AMI)
-To deploy using the latest **Amazon Linux 2023** image:
-
+### Standard Linux Deployment
 ```bash
 aws cloudformation create-stack \
-  --stack-name Zesty-POC-Stack \
-  --template-body file://zesty-poc.yaml \
+  --stack-name Zesty-Linux-POC \
+  --template-body file://template.yaml \
   --parameters \
-    ParameterKey=AmiSelection,ParameterValue=AmazonLinux2023 \
-    ParameterKey=ZestyApiKey,ParameterValue=YOUR_API_KEY \
-    ParameterKey=SubnetIds,ParameterValue=subnet-123,subnet-456 \
-    ParameterKey=SecurityGroupId,ParameterValue=sg-000 \
-    ParameterKey=KeyPairName,ParameterValue=my-key-pair \
+    ParameterKey=ZestyApiKey,ParameterValue="YOUR_API_KEY" \
+    ParameterKey=SubnetIds,ParameterValue="subnet-12345,subnet-67890" \
+    ParameterKey=SecurityGroupId,ParameterValue="sg-54321" \
+    ParameterKey=AmiSelection,ParameterValue="AmazonLinux2023" \
+    ParameterKey=ZestyVolumeSize,ParameterValue=100 \
   --capabilities CAPABILITY_IAM
-```
 For CustomAMI
 ```
 aws cloudformation create-stack \
