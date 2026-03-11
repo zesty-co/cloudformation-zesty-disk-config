@@ -1,49 +1,98 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Zesty-Disk-POC
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "1. AMI Selection"
+        Parameters:
+          - AmiSelection
+          - CustomAMI
+          - CustomOSType
+      - Label:
+          default: "2. Instance Configuration"
+        Parameters:
+          - ZestyApiKey
+          - InstanceType
+          - InstanceCount
+          - KeyPairName
+      - Label:
+          default: "3. Network Settings"
+        Parameters:
+          - SubnetIds
+          - SecurityGroupId
+
 Parameters:
-  OSSelection:
+  AmiSelection:
     Type: String
     Default: AmazonLinux2023
-    AllowedValues: [AmazonLinux2023, Windows2022]
-    Description: Select the Operating System for the POC
+    AllowedValues:
+      - AmazonLinux2023
+      - Windows2022
+      - CustomAMI
+    Description: Select a standard OS or 'Custom' to provide your own AMI ID.
+
+  CustomAMI:
+    Type: String
+    Default: ""
+    Description: "(Required ONLY if 'Custom' is selected) Enter your AMI ID (e.g., ami-xxxxxx)."
+
+  CustomOSType:
+    Type: String
+    Default: "Please-Select-OS-For-Custom"
+    AllowedValues:
+      - "Please-Select-OS-For-Custom"
+      - Linux
+      - Windows
+    Description: "(Required ONLY if 'Custom' is selected) Specify if your custom AMI is Linux or Windows."
 
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: Subnets for the instances
+    Description: Subnets for the instances.
 
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
-    Description: Security group for the instances
+    Description: Security group for the instances.
 
   ZestyApiKey:
     Type: String
     NoEcho: true
-    Description: Your Zesty Infrastructure Agent API Key
+    Description: Your Zesty Agent API Key (Can be found in Zesty Platform > ZestyDisk > Managed Filesystems > Install Agent).
 
   InstanceType:
     Type: String
     Default: c5a.large
-    Description: EC2 instance type (c5a uses NVMe)
+    Description: EC2 instance type.
 
   InstanceCount:
     Type: Number
     Default: 1
-    Description: Number of instances to launch
+    Description: Number of instances to launch.
 
   KeyPairName:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: Name of an existing EC2 KeyPair
+    Description: Name of an existing RSA KeyPair.
 
 Mappings:
   OSMap:
     AmazonLinux2023:
-      AMI: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+      Path: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+      OSType: "Linux"
     Windows2022:
-      AMI: "/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base"
+      Path: "/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base"
+      OSType: "Windows"
 
 Conditions:
-  IsWindows: !Equals [!Ref OSSelection, Windows2022]
+  IsCustom: !Equals [!Ref AmiSelection, "Custom"]
+
+  # template:
+  # Use Windows UserData if:
+  # 1. Standard Windows2022 is picked
+  # 2. Custom is picked AND CustomOSType is Windows
+  UseWindowsUserData: !Or
+    - !Equals [!Ref AmiSelection, "Windows2022"]
+    - !And [!Condition IsCustom, !Equals [!Ref CustomOSType, "Windows"]]
 
 Resources:
   InstanceRole:
@@ -53,8 +102,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
+            Principal: {Service: ec2.amazonaws.com}
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
@@ -64,16 +112,13 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - ec2:DescribeVolumes
-                  - ec2:CreateTags
+                Action: [ec2:DescribeVolumes, ec2:CreateTags]
                 Resource: "*"
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Roles:
-        - !Ref InstanceRole
+      Roles: [!Ref InstanceRole]
 
   EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -82,37 +127,30 @@ Resources:
       LaunchTemplateData:
         InstanceType: !Ref InstanceType
         KeyName: !Ref KeyPairName
-        ImageId: !Sub
-          - "{{resolve:ssm:${AmiPath}}}"
-          - AmiPath: !FindInMap [OSMap, !Ref OSSelection, AMI]
-        IamInstanceProfile:
-          Name: !Ref InstanceProfile
+        ImageId: !If
+          - IsCustom
+          - !Ref CustomAMI
+          - !Sub
+            - "{{resolve:ssm:${AmiPath}}}"
+            - AmiPath: !FindInMap [OSMap, !Ref AmiSelection, Path]
+        IamInstanceProfile: { Name: !Ref InstanceProfile }
         MetadataOptions:
           HttpTokens: required
           HttpEndpoint: enabled
-        SecurityGroupIds:
-          - !Ref SecurityGroupId
+        SecurityGroupIds: [!Ref SecurityGroupId]
         TagSpecifications:
           - ResourceType: volume
             Tags:
-              - Key: ZestyDisk
-                Value: "true"
-              - Key: Name
-                Value: ZestyPOC
+              - {Key: ZestyDisk, Value: "true"}
+              - {Key: Name, Value: ZestyPOC}
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
-            Ebs:
-              VolumeSize: 30
-              VolumeType: gp3
-              DeleteOnTermination: true
+            Ebs: {VolumeSize: 30, VolumeType: gp3, DeleteOnTermination: true}
           - DeviceName: /dev/xvdb
-            Ebs:
-              VolumeSize: 50
-              VolumeType: gp3
-              DeleteOnTermination: true
+            Ebs: {VolumeSize: 50, VolumeType: gp3, DeleteOnTermination: true}
         UserData:
           Fn::Base64: !If
-            - IsWindows
+            - UseWindowsUserData
             - !Sub |
                 <Powershell>
                 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12;
@@ -126,16 +164,13 @@ Resources:
             - !Sub |
                 #!/bin/bash
                 set -euxo pipefail
-                dnf install -y awscli
-
-                # Install Zesty Agent
+                dnf install -y awscli || yum install -y awscli
+              
                 curl -s https://static.zesty.co/ZX-InfraStructure-Agent-release/install.sh | sudo bash -s apikey=${ZestyApiKey}
-                
-                # Mount to /zd_directory
                 sleep 5
+              
                 zestyctl disk mount /dev/nvme1n1 /zd_directory || true
               
-                # Download data generator for POC testing
                 curl "https://s3.eu-west-1.amazonaws.com/static.zesty.co/scripts/zesty-big-file-generator.sh" -o "/home/ec2-user/zesty-big-file-generator.sh"
                 chmod +x /home/ec2-user/zesty-big-file-generator.sh
 
@@ -151,12 +186,10 @@ Resources:
         LaunchTemplateId: !Ref EC2LaunchTemplate
         Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
       Tags:
-        - Key: Name
-          Value: Zesty-POC-Instance
-          PropagateAtLaunch: true
+        - {Key: Name, Value: Zesty-POC-Instance, PropagateAtLaunch: true}
 
 Outputs:
-  SelectedOS:
-    Value: !Ref OSSelection
+  AmiMode:
+    Value: !Ref AmiSelection
   ASGName:
     Value: !Ref EC2AutoScalingGroup
