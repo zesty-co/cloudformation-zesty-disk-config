@@ -79,6 +79,8 @@ https://ash-speed.hetzner.com/
 
 
 ### Protection Example
+Prevent deletion of disks during EC2 termination
+Protect your instance from scale-in 
 ```
 EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
