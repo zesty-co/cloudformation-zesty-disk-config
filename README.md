@@ -77,3 +77,23 @@ https://ash-speed.hetzner.com/
 
 #### Select the file for downloading - save the file to disk D
 
+
+### Protections 
+```
+EC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+      BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 30
+              DeleteOnTermination: true # Root volume
+          - DeviceName: /dev/xvdb
+            Ebs:
+              VolumeSize: 50
+              DeleteOnTermination: false
+EC2AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      NewInstancesProtectedFromScaleIn: true
+```
+
