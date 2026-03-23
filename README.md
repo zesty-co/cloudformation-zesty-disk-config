@@ -78,7 +78,7 @@ https://ash-speed.hetzner.com/
 #### Select the file for downloading - save the file to disk D
 
 
-### Protections 
+### Protection Example
 ```
 EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
