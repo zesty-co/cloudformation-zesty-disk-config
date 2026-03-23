@@ -81,7 +81,12 @@ https://ash-speed.hetzner.com/
 ### Protection Example
 Prevent deletion of disks during EC2 termination
 
+When an instance is terminated, the EBS volumes are either deleted or preserved, depending on the value of the DeleteOnTermination
+
 Protect your instance from scale-in 
+
+Indicates whether newly launched instances are protected from termination by Amazon EC2 Auto Scaling when scaling in. For more information about preventing instances from terminating on scale in
+
 ```
 EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
