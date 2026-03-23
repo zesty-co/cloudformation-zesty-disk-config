@@ -86,7 +86,7 @@ EC2LaunchTemplate:
           - DeviceName: /dev/xvda
             Ebs:
               VolumeSize: 30
-              DeleteOnTermination: true # Root volume
+              DeleteOnTermination: false # Root volume
           - DeviceName: /dev/xvdb
             Ebs:
               VolumeSize: 50
